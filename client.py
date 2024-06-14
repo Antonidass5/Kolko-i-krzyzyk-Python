@@ -18,6 +18,7 @@ gray = (200, 200, 200)
 red = (255, 0, 0)
 green = (0, 255, 0)
 blue = (0, 0, 255)
+purple = (128, 0, 128)
 
 # Czcionka
 font = pygame.font.Font(None, 36)
@@ -61,6 +62,9 @@ def draw_board():
 
 
 def draw_information(result):
+    if not startgame:
+        draw_text(f"Oczekiwanie na przeciwnika", (0, 0), purple)
+        return
     if result == " ":
         sign = "O" if is_player_one else "X"
         if my_turn:
@@ -129,7 +133,7 @@ def reset_game():
 # Funkcja główna
 def main():
     while True:
-        global client, room_id, my_turn, run, is_player_one
+        global client, room_id, my_turn, run, is_player_one, startgame
         in_menu = True
         while in_menu:
             draw_menu()
@@ -157,6 +161,7 @@ def main():
             else:
                 client.send("JOIN_ROOM".encode('utf-8'))
                 my_turn = False
+                startgame = True
 
             thread = threading.Thread(target=receive_data)
             thread.start()
@@ -172,7 +177,7 @@ def main():
                         if check_is_win() != " " and 110 <= x <= 250 and 370 <= y <= 400:
                             reset_game()
                             return main()  # Restart the game
-                        if my_turn and check_is_win() == " " and pygame.mouse.get_focused():
+                        if my_turn and check_is_win() == " " and pygame.mouse.get_focused() and startgame:
                             col = x // 120
                             row = (y - 40) // 120
                             if 0 <= col < 3 and 0 <= row < 3:
