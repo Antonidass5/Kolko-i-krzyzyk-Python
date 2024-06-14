@@ -31,6 +31,7 @@ run = True
 is_player_one = True
 startgame = False
 
+
 # Funkcje interfejsu graficznego
 def draw_text(text, pos, color=black):
     text_surface = font.render(text, True, color)
@@ -47,7 +48,7 @@ def draw_menu():
 def draw_board():
     win.fill(white)
     for i in range(1, 3):
-        pygame.draw.line(win, black, (120 * i, 0 + 40), (120 * i, 360 + 40), 5)
+        pygame.draw.line(win, black, (120 * i, 40), (120 * i, 400), 5)
         pygame.draw.line(win, black, (0, 120 * i + 40), (360, 120 * i + 40), 5)
     for idx, val in enumerate(board):
         if val != ' ':
@@ -61,9 +62,7 @@ def draw_board():
 
 def draw_information(result):
     if result == " ":
-        sign = "O"
-        if not is_player_one:
-            sign = "X"
+        sign = "O" if is_player_one else "X"
         if my_turn:
             draw_text(f"Twój ruch ({sign})", (0, 0), green)
         else:
@@ -71,10 +70,12 @@ def draw_information(result):
         return
     if (result == "O" and is_player_one) or (result == "X" and not is_player_one):
         draw_text("Wygrałeś", (120, 0), green)
-    if (result == "O" and not is_player_one) or (result == "X" and is_player_one):
+    elif (result == "O" and not is_player_one) or (result == "X" and is_player_one):
         draw_text("Przegrałeś", (120, 0), red)
-    if result == "D":
+    else:
         draw_text("Remis", (120, 0), blue)
+
+    draw_text("Powrót do menu", (110, 370), blue)
 
 
 # Funkcje sieciowe
@@ -82,7 +83,6 @@ def receive_data():
     global my_turn, board, run, startgame
     while run:
         try:
-
             message = client.recv(1024).decode('utf-8')
             if message.startswith("START_GAME") and is_player_one:
                 startgame = True
@@ -98,79 +98,86 @@ def receive_data():
 def send_move(idx):
     global my_turn
     if board[idx] == ' ' and my_turn:
-        if is_player_one:
-            board[idx] = "O"
-        else:
-            board[idx] = "X"
+        board[idx] = "O" if is_player_one else "X"
         draw_board()
         client.send(f"MOVE {idx} {board[idx]}".encode('utf-8'))
         my_turn = False
 
 
 def check_is_win():
-    for i in range(3):
-        if board[i] == board[i + 1] and board[i + 1] == board[i + 2]:
-            return board[i]
-    for i in range(3):
-        if board[i] == board[i + 3] and board[i + 3] == board[i + 6]:
-            return board[i]
-    if (board[0] == board[4] and board[4] == board[8]) or (board[2] == board[4] and board[4] == board[6]):
-        return board[4]
-    for field in board:
-        if field == " ":
-            return " "
-    return "D"
+    win_conditions = [
+        [0, 1, 2], [3, 4, 5], [6, 7, 8],  # poziome
+        [0, 3, 6], [1, 4, 7], [2, 5, 8],  # pionowe
+        [0, 4, 8], [2, 4, 6]  # ukośne
+    ]
+    for condition in win_conditions:
+        if board[condition[0]] == board[condition[1]] == board[condition[2]] != ' ':
+            return board[condition[0]]
+    if ' ' not in board:
+        return "D"
+    return " "
+
+
+def reset_game():
+    global board, my_turn, startgame, is_player_one
+    board = [' ' for _ in range(9)]
+    my_turn = False
+    startgame = False
+    is_player_one = True
 
 
 # Funkcja główna
 def main():
-    global client, room_id, my_turn, run, is_player_one
-    in_menu = True
-    while in_menu:
-        draw_menu()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                run = False
-                pygame.quit()
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                x, y = pygame.mouse.get_pos()
-                if 75 <= x <= 300 and 150 <= y <= 180:
-                    room_id = "new_room"
-                    in_menu = False
-                if 75 <= x <= 300 and 200 <= y <= 230:
-                    room_id = "join_room"
-                    in_menu = False
-                    is_player_one = False
+    while True:
+        global client, room_id, my_turn, run, is_player_one
+        in_menu = True
+        while in_menu:
+            draw_menu()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    run = False
+                    pygame.quit()
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    x, y = pygame.mouse.get_pos()
+                    if 75 <= x <= 300 and 150 <= y <= 180:
+                        room_id = "new_room"
+                        in_menu = False
+                    if 75 <= x <= 300 and 200 <= y <= 230:
+                        room_id = "join_room"
+                        in_menu = False
+                        is_player_one = False
 
-    # Po wyborze pokoju
-    if room_id:
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.connect(('127.0.0.1', 5555))
+        if room_id:
+            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client.connect(('127.0.0.1', 5555))
 
-        # Wyślij informacje o pokoju do serwera
-        if room_id == "new_room":
-            client.send("CREATE_ROOM".encode('utf-8'))
-            my_turn = True  # Pierwszy gracz
-        else:
-            client.send("JOIN_ROOM".encode('utf-8'))
-            my_turn = False  # Drugi gracz
+            if room_id == "new_room":
+                client.send("CREATE_ROOM".encode('utf-8'))
+                my_turn = True
+            else:
+                client.send("JOIN_ROOM".encode('utf-8'))
+                my_turn = False
 
-        thread = threading.Thread(target=receive_data)
-        thread.start()
+            thread = threading.Thread(target=receive_data)
+            thread.start()
 
-        while run:
-            draw_board()
-            if startgame or not is_player_one:
+            while run:
+                draw_board()
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         run = False
                         pygame.quit()
-                    if event.type == pygame.MOUSEBUTTONDOWN and my_turn and check_is_win() == " " and pygame. mouse. get_focused():
+                    if event.type == pygame.MOUSEBUTTONDOWN:
                         x, y = pygame.mouse.get_pos()
-                        col = x // 120
-                        row = (y - 40) // 120
-                        idx = row * 3 + col
-                        send_move(idx)
+                        if check_is_win() != " " and 110 <= x <= 250 and 370 <= y <= 400:
+                            reset_game()
+                            return main()  # Restart the game
+                        if my_turn and check_is_win() == " " and pygame.mouse.get_focused():
+                            col = x // 120
+                            row = (y - 40) // 120
+                            if 0 <= col < 3 and 0 <= row < 3:
+                                idx = row * 3 + col
+                                send_move(idx)
 
 
 if __name__ == "__main__":
