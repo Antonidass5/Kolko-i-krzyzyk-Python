@@ -29,7 +29,7 @@ my_turn = False
 board = [' ' for _ in range(9)]
 run = True
 is_player_one = True
-
+startgame = False
 
 # Funkcje interfejsu graficznego
 def draw_text(text, pos, color=black):
@@ -79,10 +79,13 @@ def draw_information(result):
 
 # Funkcje sieciowe
 def receive_data():
-    global my_turn, board, run
+    global my_turn, board, run, startgame
     while run:
         try:
+
             message = client.recv(1024).decode('utf-8')
+            if message.startswith("START_GAME") and is_player_one:
+                startgame = True
             if message.startswith("MOVE"):
                 idx, player = message.split()[1:]
                 board[int(idx)] = player
@@ -156,18 +159,18 @@ def main():
         thread.start()
 
         while run:
-            # TODO: czekaj na przeciwnika
             draw_board()
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    run = False
-                    pygame.quit()
-                if event.type == pygame.MOUSEBUTTONDOWN and my_turn and check_is_win() == " ":
-                    x, y = pygame.mouse.get_pos()
-                    col = x // 120
-                    row = (y - 40) // 120
-                    idx = row * 3 + col
-                    send_move(idx)
+            if startgame or not is_player_one:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        run = False
+                        pygame.quit()
+                    if event.type == pygame.MOUSEBUTTONDOWN and my_turn and check_is_win() == " " and pygame. mouse. get_focused():
+                        x, y = pygame.mouse.get_pos()
+                        col = x // 120
+                        row = (y - 40) // 120
+                        idx = row * 3 + col
+                        send_move(idx)
 
 
 if __name__ == "__main__":
